@@ -54,9 +54,10 @@ jobs:
               echo "After=network.target" | sudo tee -a $SERVICE_PATH > /dev/null
               echo "" | sudo tee -a $SERVICE_PATH > /dev/null
               echo "[Service]" | sudo tee -a $SERVICE_PATH > /dev/null
-              echo "ExecStart=$BINARY_FINAL_PATH --port 80" | sudo tee -a $SERVICE_PATH > /dev/null
+              echo "ExecStart=$BINARY_FINAL_PATH" | sudo tee -a $SERVICE_PATH > /dev/null
               echo "WorkingDirectory=/home/opc" | sudo tee -a $SERVICE_PATH > /dev/null
               echo "Restart=always" | sudo tee -a $SERVICE_PATH > /dev/null
+              echo "RestartSec=5s" | sudo tee -a $SERVICE_PATH > /dev/null # Give it breath between retries
               echo "User=root" | sudo tee -a $SERVICE_PATH > /dev/null
               echo "" | sudo tee -a $SERVICE_PATH > /dev/null
               echo "[Install]" | sudo tee -a $SERVICE_PATH > /dev/null
