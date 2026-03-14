@@ -27,7 +27,15 @@ async fn main() -> std::io::Result<()> {
         .state();
 
     // 2. Drive the ACME state in the background
-    let rustls_config = state.default_rustls_config();
+    let default_config = state.default_rustls_config();
+    let mut rustls_config = (*default_config).clone();
+
+    // THE FIX: Explicitly add the ALPN protocols so Let's Encrypt isn't rejected
+    rustls_config.alpn_protocols = vec![
+        b"h2".to_vec(),
+        b"http/1.1".to_vec(),
+        b"acme-tls/1".to_vec(), // <--- This is what your server was missing!
+    ];
     tokio::spawn(async move {
         loop {
             match state.next().await {
@@ -46,7 +54,7 @@ async fn main() -> std::io::Result<()> {
             .service(hello)
             .service(echo)
     })
-    .bind_rustls_0_23(("0.0.0.0", 443), (*rustls_config).clone())?
+    .bind_rustls_0_23(("0.0.0.0", 443), rustls_config)?
     .run()
     .await
 }
