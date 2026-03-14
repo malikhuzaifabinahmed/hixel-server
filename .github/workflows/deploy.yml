@@ -33,7 +33,7 @@ jobs:
           script: |
             # --- CONFIGURATION VARIABLES ---
             BINARY_NAME="hixelserver"
-            SERVICE_NAME="hixelserver.service" # Make sure this matches your actual service file name
+            SERVICE_NAME="hixelserver.service" # Make sure this matches your actual service file name in  the server
             BINARY_TMP_PATH="/home/opc/tmp_deploy/$BINARY_NAME"
             BINARY_FINAL_PATH="/home/opc/$BINARY_NAME"
             SERVICE_PATH="/etc/systemd/system/$SERVICE_NAME"
