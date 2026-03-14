@@ -3,7 +3,7 @@ name: Deploy Hixel Server to Production
 on:
   push:
     branches:
-      - main
+      - production
 
 jobs:
   deploy:
