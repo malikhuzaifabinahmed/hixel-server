@@ -1,9 +1,9 @@
-name: Deploy Binary to Production
+name: Deploy Hixel Server to Production
 
 on:
   push:
     branches:
-      - main # Triggers the action when code is pushed to the main branch
+      - main # Triggers on push to main branch
 
 jobs:
   deploy:
@@ -12,18 +12,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Step 1: Securely copy the binary to a temporary folder on the server
+      # Step 1: Copy the binary to a temporary folder in the opc user's home directory
       - name: Copy binary to server via SCP
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.PROD_HOST }}
-          username: ${{ secrets.PROD_USERNAME }}
+          host: ${{ secrets.PROD_HOST }}      # Make sure this is set to 80.225.212.152 in GitHub Secrets
+          username: ${{ secrets.PROD_USERNAME }}  # Set to opc
           key: ${{ secrets.PROD_SSH_KEY }}
-          source: "path/to/your/binary-file" # UPDATE THIS: The path to the binary in your GitHub repo
-          target: "/tmp/deployment/"         # Temporary holding zone on the server
-          strip_components: 1                # Adjusts folder structure; you may need to tweak this
+          source: "hixelserver"               # UPDATE THIS if the binary has a different name in your repo
+          target: "/home/opc/tmp_deploy/"     # Temporary staging area
+          strip_components: 1                 # Tweak based on your repo structure
 
-      # Step 2: SSH into the server to move the binary and manage the service
+      # Step 2: SSH in, update the binary, and restart/create the service
       - name: Execute deployment script via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -32,36 +32,45 @@ jobs:
           key: ${{ secrets.PROD_SSH_KEY }}
           script: |
             # --- CONFIGURATION VARIABLES ---
-            BINARY_NAME="your-binary-name"               # UPDATE THIS
-            SERVICE_NAME="myapp.service"                 # UPDATE THIS
-            BINARY_TMP_PATH="/tmp/deployment/$BINARY_NAME"
-            BINARY_FINAL_PATH="/usr/local/bin/$BINARY_NAME"
+            BINARY_NAME="hixelserver"
+            SERVICE_NAME="hixelserver.service" # Make sure this matches your actual service file name
+            BINARY_TMP_PATH="/home/opc/tmp_deploy/$BINARY_NAME"
+            BINARY_FINAL_PATH="/home/opc/$BINARY_NAME"
             SERVICE_PATH="/etc/systemd/system/$SERVICE_NAME"
             # -------------------------------
 
-            echo "Moving binary to $BINARY_FINAL_PATH..."
-            sudo mv $BINARY_TMP_PATH $BINARY_FINAL_PATH
-            sudo chmod +x $BINARY_FINAL_PATH
+            echo "Setting executable permissions on the new binary..."
+            chmod +x $BINARY_TMP_PATH
 
-            # Check if the service file already exists
+            # We stop the service first to avoid "text file busy" errors if the binary is actively running
+            if systemctl is-active --quiet $SERVICE_NAME; then
+                echo "Stopping $SERVICE_NAME before replacement..."
+                sudo systemctl stop $SERVICE_NAME
+            fi
+
+            echo "Moving binary to $BINARY_FINAL_PATH..."
+            # Using mv replaces the inode, which is safe for updating binaries
+            sudo mv $BINARY_TMP_PATH $BINARY_FINAL_PATH
+
+            # Check if the service file exists
             if [ -f "$SERVICE_PATH" ]; then
                 echo "Service $SERVICE_NAME found. Restarting..."
                 sudo systemctl daemon-reload
-                sudo systemctl restart $SERVICE_NAME
+                sudo systemctl start $SERVICE_NAME
             else
                 echo "Service $SERVICE_NAME not found. Creating it..."
                 
-                # Create the systemd service file dynamically
+                # Create the exact systemd service file you provided
                 sudo bash -c "cat > $SERVICE_PATH" <<EOF
             [Unit]
-            Description=My Production App Service
+            Description=Hixel Server
             After=network.target
 
             [Service]
-            Type=simple
-            ExecStart=$BINARY_FINAL_PATH
-            Restart=on-failure
-            # User=www-data # Optional: Uncomment to run as a specific user instead of root
+            ExecStart=$BINARY_FINAL_PATH --port 80
+            WorkingDirectory=/home/opc
+            Restart=always
+            User=root
 
             [Install]
             WantedBy=multi-user.target
@@ -74,5 +83,5 @@ jobs:
             fi
 
             # Clean up temporary deployment folder
-            rm -rf /tmp/deployment/
+            rm -rf /home/opc/tmp_deploy/
             echo "Deployment successful!"
