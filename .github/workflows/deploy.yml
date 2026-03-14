@@ -19,7 +19,7 @@ jobs:
           host: ${{ secrets.PROD_HOST }}      # Make sure this is set to 80.225.212.152 in GitHub Secrets
           username: ${{ secrets.PROD_USERNAME }}  # Set to opc
           key: ${{ secrets.PROD_SSH_KEY }}
-          source: "hixelserver"               # UPDATE THIS if the binary has a different name in your repo
+          source: "latest/hixelserver"       
           target: "/home/opc/tmp_deploy/"     # Temporary staging area
           strip_components: 1                 # Tweak based on your repo structure
 
