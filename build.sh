@@ -2,7 +2,7 @@
 set -e
 
 echo "Building release..."
-cargo build --release
+cargo build --release --target x86_64-unknown-linux-gnu
 
 echo "Copying release binary to 'latest' directory..."
 mkdir -p latest
