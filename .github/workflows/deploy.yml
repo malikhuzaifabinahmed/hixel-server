@@ -1,0 +1,78 @@
+name: Deploy Binary to Production
+
+on:
+  push:
+    branches:
+      - main # Triggers the action when code is pushed to the main branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 1: Securely copy the binary to a temporary folder on the server
+      - name: Copy binary to server via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USERNAME }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          source: "path/to/your/binary-file" # UPDATE THIS: The path to the binary in your GitHub repo
+          target: "/tmp/deployment/"         # Temporary holding zone on the server
+          strip_components: 1                # Adjusts folder structure; you may need to tweak this
+
+      # Step 2: SSH into the server to move the binary and manage the service
+      - name: Execute deployment script via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USERNAME }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            # --- CONFIGURATION VARIABLES ---
+            BINARY_NAME="your-binary-name"               # UPDATE THIS
+            SERVICE_NAME="myapp.service"                 # UPDATE THIS
+            BINARY_TMP_PATH="/tmp/deployment/$BINARY_NAME"
+            BINARY_FINAL_PATH="/usr/local/bin/$BINARY_NAME"
+            SERVICE_PATH="/etc/systemd/system/$SERVICE_NAME"
+            # -------------------------------
+
+            echo "Moving binary to $BINARY_FINAL_PATH..."
+            sudo mv $BINARY_TMP_PATH $BINARY_FINAL_PATH
+            sudo chmod +x $BINARY_FINAL_PATH
+
+            # Check if the service file already exists
+            if [ -f "$SERVICE_PATH" ]; then
+                echo "Service $SERVICE_NAME found. Restarting..."
+                sudo systemctl daemon-reload
+                sudo systemctl restart $SERVICE_NAME
+            else
+                echo "Service $SERVICE_NAME not found. Creating it..."
+                
+                # Create the systemd service file dynamically
+                sudo bash -c "cat > $SERVICE_PATH" <<EOF
+            [Unit]
+            Description=My Production App Service
+            After=network.target
+
+            [Service]
+            Type=simple
+            ExecStart=$BINARY_FINAL_PATH
+            Restart=on-failure
+            # User=www-data # Optional: Uncomment to run as a specific user instead of root
+
+            [Install]
+            WantedBy=multi-user.target
+            EOF
+
+                echo "Reloading daemon, enabling, and starting the new service..."
+                sudo systemctl daemon-reload
+                sudo systemctl enable $SERVICE_NAME
+                sudo systemctl start $SERVICE_NAME
+            fi
+
+            # Clean up temporary deployment folder
+            rm -rf /tmp/deployment/
+            echo "Deployment successful!"
