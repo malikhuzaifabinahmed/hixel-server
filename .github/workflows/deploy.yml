@@ -14,7 +14,7 @@ jobs:
 
       # Step 1: Copy the binary to a temporary folder in the opc user's home directory
       - name: Copy binary to server via SCP
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/drone-scp
         with:
           host: ${{ secrets.PROD_HOST }}      # Make sure this is set to 80.225.212.152 in GitHub Secrets
           username: ${{ secrets.PROD_USERNAME }}  # Set to opc
