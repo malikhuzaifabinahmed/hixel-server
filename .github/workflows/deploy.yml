@@ -46,25 +46,24 @@ jobs:
           echo "Moving binary to final location..."
           sudo mv $BINARY_TMP_PATH $BINARY_FINAL_PATH
 
-          # Create service file cleanly to avoid indentation breaks
-          if [ ! -f "$SERVICE_PATH" ]; then
-              echo "Service not found. Creating $SERVICE_NAME..."
-              echo "[Unit]" | sudo tee $SERVICE_PATH > /dev/null
-              echo "Description=Hixel Server" | sudo tee -a $SERVICE_PATH > /dev/null
-              echo "After=network.target" | sudo tee -a $SERVICE_PATH > /dev/null
-              echo "" | sudo tee -a $SERVICE_PATH > /dev/null
-              echo "[Service]" | sudo tee -a $SERVICE_PATH > /dev/null
-              echo "ExecStart=$BINARY_FINAL_PATH" | sudo tee -a $SERVICE_PATH > /dev/null
-              echo "WorkingDirectory=/home/opc" | sudo tee -a $SERVICE_PATH > /dev/null
-              echo "Restart=always" | sudo tee -a $SERVICE_PATH > /dev/null
-              echo "RestartSec=5s" | sudo tee -a $SERVICE_PATH > /dev/null # Give it breath between retries
-              echo "User=root" | sudo tee -a $SERVICE_PATH > /dev/null
-              echo "" | sudo tee -a $SERVICE_PATH > /dev/null
-              echo "[Install]" | sudo tee -a $SERVICE_PATH > /dev/null
-              echo "WantedBy=multi-user.target" | sudo tee -a $SERVICE_PATH > /dev/null
-              
-              sudo systemctl enable $SERVICE_NAME
-          fi
+          # Create or update service file cleanly to avoid indentation breaks
+          echo "Configuring $SERVICE_NAME..."
+          echo "[Unit]" | sudo tee $SERVICE_PATH > /dev/null
+          echo "Description=Hixel Server" | sudo tee -a $SERVICE_PATH > /dev/null
+          echo "After=network.target" | sudo tee -a $SERVICE_PATH > /dev/null
+          echo "" | sudo tee -a $SERVICE_PATH > /dev/null
+          echo "[Service]" | sudo tee -a $SERVICE_PATH > /dev/null
+          echo "ExecStart=$BINARY_FINAL_PATH" | sudo tee -a $SERVICE_PATH > /dev/null
+          echo "WorkingDirectory=/home/opc" | sudo tee -a $SERVICE_PATH > /dev/null
+          echo "Environment=\"APP_ENV=production\"" | sudo tee -a $SERVICE_PATH > /dev/null
+          echo "Restart=always" | sudo tee -a $SERVICE_PATH > /dev/null
+          echo "RestartSec=5s" | sudo tee -a $SERVICE_PATH > /dev/null # Give it breath between retries
+          echo "User=root" | sudo tee -a $SERVICE_PATH > /dev/null
+          echo "" | sudo tee -a $SERVICE_PATH > /dev/null
+          echo "[Install]" | sudo tee -a $SERVICE_PATH > /dev/null
+          echo "WantedBy=multi-user.target" | sudo tee -a $SERVICE_PATH > /dev/null
+          
+          sudo systemctl enable $SERVICE_NAME
 
           echo "Reloading systemd and starting service..."
           sudo systemctl daemon-reload

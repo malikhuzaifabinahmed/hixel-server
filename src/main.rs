@@ -1,60 +1,77 @@
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
+mod models;
+mod handlers;
+mod worker;
+
+use actix_web::{web, App, HttpServer};
 use rustls_acme::{caches::DirCache, AcmeConfig};
 use tokio_stream::StreamExt;
+use std::env;
+use tokio::sync::mpsc;
 
-#[get("/")]
-async fn hello() -> impl Responder {
-    HttpResponse::Ok()
-        .content_type("text/html; charset=utf-8")
-        .body(include_str!("../static/index.html"))
-}
-
-#[post("/echo")]
-async fn echo(req_body: web::Json<serde_json::Value>) -> impl Responder {
-    HttpResponse::Ok().json(req_body.into_inner())
-}
+use models::ShiftData;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    let domain = "huzaifabinahmed.com";
+    let is_production = env::var("APP_ENV").unwrap_or_else(|_| "development".to_string()) == "production";
+    let domains = ["huzaifabinahmed.com", "www.huzaifabinahmed.com"];
     let email = "huzaifamalik3216@gmail.com";
+    
+    let (tx, rx) = mpsc::channel::<ShiftData>(10000);
 
-    // 1. Configure ACME
-    let mut state = AcmeConfig::new([domain])
-        .contact_push(format!("mailto:{}", email))
-        .cache(DirCache::new("./.rustls_acme_cache"))
-        .directory_lets_encrypt(true) // Use .directory_lets_encrypt_staging(true) for dev
-        .state();
+    let app_state = web::Data::new(tx);
 
-    // 2. Drive the ACME state in the background
-    let default_config = state.default_rustls_config();
-    let mut rustls_config = (*default_config).clone();
+    tokio::spawn(worker::start_background_worker(rx));
 
-    // THE FIX: Explicitly add the ALPN protocols so Let's Encrypt isn't rejected
-    rustls_config.alpn_protocols = vec![
-        b"h2".to_vec(),
-        b"http/1.1".to_vec(),
-        b"acme-tls/1".to_vec(), // <--- This is what your server was missing!
-    ];
-    tokio::spawn(async move {
-        loop {
-            match state.next().await {
-                Some(Ok(event)) => println!("ACME event: {:?}", event),
-                Some(Err(e)) => eprintln!("ACME error: {:?}", e),
-                None => break,
+    if is_production {
+        let mut state = AcmeConfig::new(domains)
+            .contact_push(format!("mailto:{}", email))
+            .cache(DirCache::new("./.rustls_acme_cache"))
+            .directory_lets_encrypt(false)
+            .state();
+
+        let default_config = state.default_rustls_config();
+        let mut rustls_config = (*default_config).clone();
+
+        rustls_config.alpn_protocols = vec![
+            b"h2".to_vec(),
+            b"http/1.1".to_vec(),
+            b"acme-tls/1".to_vec(),
+        ];
+        
+        tokio::spawn(async move {
+            loop {
+                match state.next().await {
+                    Some(Ok(event)) => println!("ACME event: {:?}", event),
+                    Some(Err(e)) => eprintln!("ACME error: {:?}", e),
+                    None => break,
+                }
             }
-        }
-    });
+        });
 
-    println!("Server running on https://{}", domain);
+        println!("Server running on production (HTTPS)");
 
-    // 3. Start the HTTPS server
-    HttpServer::new(|| {
-        App::new()
-            .service(hello)
-            .service(echo)
-    })
-    .bind_rustls_0_23(("0.0.0.0", 443), rustls_config)?
-    .run()
-    .await
+        HttpServer::new(move || {
+            App::new()
+                .app_data(app_state.clone())
+                .service(handlers::hello)
+                .service(handlers::echo)
+                .service(handlers::ingest)
+        })
+        .bind_rustls_0_23(("0.0.0.0", 443), rustls_config)?
+        .run()
+        .await
+    } else {
+        println!("Server running on localhost (HTTP)");
+
+        HttpServer::new(move || {
+            App::new()
+                .app_data(app_state.clone())
+                .service(handlers::hello)
+                .service(handlers::echo)
+                .service(handlers::ingest)
+        })
+        .bind(("0.0.0.0", 80))?
+        .run()
+        .await
+    }
 }
