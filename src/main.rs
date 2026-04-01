@@ -26,7 +26,7 @@ async fn main() -> std::io::Result<()> {
         let mut state = AcmeConfig::new(domains)
             .contact_push(format!("mailto:{}", email))
             .cache(DirCache::new("./.rustls_acme_cache"))
-            .directory_lets_encrypt(false)
+            .directory_lets_encrypt(true)
             .state();
 
         let default_config = state.default_rustls_config();
