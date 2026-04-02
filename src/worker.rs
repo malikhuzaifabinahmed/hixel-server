@@ -3,6 +3,7 @@ use crate::models::ShiftData;
 
 pub async fn flush_to_disk(batch: &[ShiftData]) {
     println!("💾 Flushed batch of {} records to disk.", batch.len());
+    
     // TODO: Implement actual File I/O, Database Insert, or Parquet writing here.
 }
 
